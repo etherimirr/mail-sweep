@@ -1,0 +1,13 @@
+# Never commit mail, tokens or personal configuration.
+config.toml
+data/
+reports/
+*.sqlite
+*.sqlite-journal
+token*.json
+client_secret*.json
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.DS_Store

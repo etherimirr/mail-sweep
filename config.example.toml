@@ -1,0 +1,34 @@
+# Copy to config.toml (which is git-ignored) and edit.
+
+token_path = "~/.config/mail-sweep/token.json"
+client_secret_path = "~/.config/mail-sweep/client_secret.json"
+timezone = "America/New_York"
+
+# Language for the one-line summaries in the report.
+summary_language = "English"
+
+# Other addresses that are also you (aliases, forwarding addresses).
+my_addresses = []
+
+# Mail matching any of these regular expressions (sender name, address or
+# subject) is recorded as "private": it is counted in the ledger so coverage
+# stays complete, but its subject and body are not stored and it is never
+# sent to a language model.
+private_patterns = [
+    # "therapy", "clinic\\.example\\.org",
+]
+
+# Classifier for mail the narrow rules do not cover:
+#   auto        Anthropic API if ANTHROPIC_API_KEY is set, else the `claude` CLI, else none
+#   anthropic   Anthropic API (pip install anthropic)
+#   claude-cli  Claude Code in print mode (`claude -p`)
+#   none        rules only; everything else is flagged for you to read
+llm = "auto"
+model = "claude-opus-5-5"
+batch_size = 8
+
+# Each run re-lists this many days before the previous run's end, so mail
+# that arrived late or was missed is caught. Already-read mail is skipped.
+overlap_days = 3
+first_run_days = 14
+follow_up_days = 4
