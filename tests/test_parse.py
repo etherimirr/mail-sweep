@@ -66,3 +66,17 @@ def test_folder_priority():
     assert parse.folder_of(["INBOX", "SPAM"]) == "SPAM"
     assert parse.folder_of(["SENT"]) == "SENT"
     assert parse.folder_of(["CATEGORY_UPDATES"]) == "ARCHIVE"
+
+
+def test_leaked_stylesheet_is_removed_but_the_request_survives():
+    text = ("This email was sent on behalf of a school. table.button table td { background: #003580; "
+            "border-color: #003580; color: white; } a:hover { color: #19498c; } "
+            "Dear Students, please fill out this form by Friday, 10/23 at 5pm ET.")
+    cleaned = parse.strip_noise(text)
+    assert "#003580" not in cleaned and "a:hover" not in cleaned
+    assert "please fill out this form by Friday, 10/23 at 5pm ET." in cleaned
+
+
+def test_ordinary_braces_are_left_alone():
+    text = 'The config is {"retries": 3} and the set {a, b} stays.'
+    assert parse.strip_noise(text) == text

@@ -84,8 +84,19 @@ def html_to_text(markup: str) -> str:
     return re.sub(r"\n\s*\n+", "\n", text).strip()
 
 
+CSS_RULE = re.compile(
+    r"(?:^|(?<=[\s}]))[^{}\n]{1,200}\{\s*(?:[\w-]+\s*:\s*[^;{}]+;?\s*)+\}", re.M)
+
+
 def strip_noise(text: str) -> str:
-    """Drop mail-gateway banners and unwrap rewritten links."""
+    """Drop mail-gateway banners and leaked stylesheets, unwrap rewritten links.
+
+    Some senders put their stylesheet in the text part. Left in, it eats the
+    excerpt and pushes the actual request out of what the classifier sees."""
+    for _ in range(3):  # rules can be adjacent; a few passes clear them all
+        text, count = CSS_RULE.subn(" ", text)
+        if not count:
+            break
     text = re.sub(r"ZjQcmQRYFpfptBannerStart.*?ZjQcmQRYFpfptBannerEnd", " ", text, flags=re.S)
     text = re.sub(r"#pfptBanner\w+\s*\{.*?\}\s*(?:[.#\w:> ,\-]+\{.*?\}\s*)*", " ", text, flags=re.S)
 
