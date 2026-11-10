@@ -240,9 +240,20 @@ def cmd_apply(args, config: dict) -> int:
         if category not in classify.CATEGORIES:
             print(f"skipped {item.get('id')}: unknown category {category!r}", file=sys.stderr)
             continue
+        needs_action = bool(item.get("needs_action"))
+        row = ledger.get(str(item["id"]))
+        if row is None:
+            print(f"skipped {item.get('id')}: not in the ledger", file=sys.stderr)
+            continue
+        # A calendar invite with a start time stays surfaced whatever the verdict says.
+        if any(e.get("start_utc") and e.get("method", "").upper() != "CANCEL"
+               for e in json.loads(row["events"] or "[]")):
+            needs_action = True
+            if category in ("other", "notification", "personal"):
+                category = "interview_scheduled"
         applied += ledger.apply_verdict(str(item["id"]), {
             "category": category,
-            "needs_action": int(bool(item.get("needs_action"))),
+            "needs_action": int(needs_action),
             "action": item.get("action", ""),
             "deadline": item.get("deadline", ""),
             "company": item.get("company", ""),

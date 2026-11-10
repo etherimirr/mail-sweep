@@ -137,6 +137,9 @@ class Ledger:
     def pending_failures(self) -> list[str]:
         return [r["msg_id"] for r in self.db.execute("SELECT msg_id FROM failures")]
 
+    def get(self, msg_id: str) -> sqlite3.Row | None:
+        return self.db.execute("SELECT * FROM messages WHERE msg_id=?", (msg_id,)).fetchone()
+
     def unclassified(self) -> list[sqlite3.Row]:
         return self.db.execute(
             "SELECT * FROM messages WHERE category='unclassified' ORDER BY internal_ts"

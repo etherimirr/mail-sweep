@@ -17,6 +17,12 @@ def _who(row) -> str:
     return row["company"] or row["from_name"] or row["from_email"] or "?"
 
 
+def _event_is_over(row, now: datetime) -> bool:
+    """A meeting that has already happened no longer needs anyone."""
+    events = [e for e in json.loads(row["events"] or "[]") if e.get("start_utc")]
+    return bool(events) and not any(is_upcoming(e["start_utc"], now) for e in events)
+
+
 def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: int = 4) -> str:
     now = datetime.now(timezone.utc)
     lines: list[str] = []
@@ -40,7 +46,8 @@ def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: 
         out("No classifier has judged these. Run `sweep.py pending --json p.json`, judge them, "
             "then `sweep.py apply`. Until then they are treated as needing you.")
         out("")
-    open_items = [r for r in ledger.open_items() if r["category"] != "unclassified"]
+    open_items = [r for r in ledger.open_items()
+                  if r["category"] != "unclassified" and not _event_is_over(r, now)]
     out(f"## Needs you ({len(open_items)})")
     if not open_items:
         out("Nothing open.")

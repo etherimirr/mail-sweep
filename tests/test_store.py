@@ -56,3 +56,13 @@ def test_awaiting_them(tmp_path):
     assert [r["msg_id"] for r in ledger.awaiting_them(older_than_ts=250, newer_than_ts=0)] == ["mine"]
     ledger.record(row("their2", "t1", 300))
     assert ledger.awaiting_them(older_than_ts=400, newer_than_ts=0) == []
+
+
+def test_get_and_apply_verdict(tmp_path):
+    ledger = Ledger(tmp_path / "l.sqlite")
+    ledger.record(row("u", "t", 1, needs_action=1, category="unclassified"))
+    assert [r["msg_id"] for r in ledger.unclassified()] == ["u"]
+    assert ledger.apply_verdict("u", {"category": "rejection", "needs_action": 0, "classifier": "agent:x"})
+    assert ledger.unclassified() == []
+    assert ledger.get("u")["category"] == "rejection"
+    assert ledger.get("missing") is None
