@@ -66,7 +66,7 @@ def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: 
     out("")
 
     upcoming = []
-    for row in ledger.with_events(int(now.timestamp()) - 45 * 86400):
+    for row in ledger.with_events():
         for event in json.loads(row["events"] or "[]"):
             if event.get("method", "").upper() != "CANCEL" and is_upcoming(event.get("start_utc", ""), now):
                 upcoming.append((event["start_utc"], event, row))

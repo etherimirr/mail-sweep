@@ -199,10 +199,11 @@ class Ledger:
             (newer_than_ts, older_than_ts),
         ).fetchall()
 
-    def with_events(self, since_ts: int) -> list[sqlite3.Row]:
+    def with_events(self) -> list[sqlite3.Row]:
+        """Every message carrying a calendar event, however long ago it came:
+        an invitation can arrive months before the meeting."""
         return self.db.execute(
-            "SELECT * FROM messages WHERE events != '[]' AND internal_ts >= ? ORDER BY internal_ts",
-            (since_ts,),
+            "SELECT * FROM messages WHERE events != '[]' ORDER BY internal_ts"
         ).fetchall()
 
     def run_messages(self, run_id: int) -> list[sqlite3.Row]:
