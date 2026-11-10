@@ -8,6 +8,7 @@
     python sweep.py done <msg_id> [note] mark an item as handled
     python sweep.py pending --json p.json   dump mail no classifier has judged yet
     python sweep.py apply v.json            write verdicts for that mail back
+    python sweep.py scrub                re-apply private_patterns to mail already in the ledger
     python sweep.py status               recent runs
     python sweep.py export --since 2026-01-01T00:00:00Z --csv out.csv
 """
@@ -282,6 +283,13 @@ def cmd_report(args, config: dict) -> int:
     return 0
 
 
+def cmd_scrub(args, config: dict) -> int:
+    ledger = Ledger(config["ledger_path"])
+    count = ledger.scrub_private(config["private_patterns"])
+    print(f"scrubbed {count} message(s) now matching private_patterns")
+    return 0
+
+
 def cmd_status(args, config: dict) -> int:
     ledger = Ledger(config["ledger_path"])
     for run in ledger.recent_runs():
@@ -319,6 +327,7 @@ def main() -> int:
     done.add_argument("msg_id")
     done.add_argument("note", nargs="*")
     sub.add_parser("status")
+    sub.add_parser("scrub")
     sub.add_parser("report")
     pending = sub.add_parser("pending")
     pending.add_argument("--json", required=True)
@@ -336,7 +345,7 @@ def main() -> int:
         return 0
     return {"run": cmd_run, "audit": cmd_audit, "done": cmd_done,
             "status": cmd_status, "export": cmd_export, "pending": cmd_pending,
-            "apply": cmd_apply, "report": cmd_report}[args.command](args, config)
+            "apply": cmd_apply, "report": cmd_report, "scrub": cmd_scrub}[args.command](args, config)
 
 
 if __name__ == "__main__":

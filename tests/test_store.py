@@ -66,3 +66,17 @@ def test_get_and_apply_verdict(tmp_path):
     assert ledger.unclassified() == []
     assert ledger.get("u")["category"] == "rejection"
     assert ledger.get("missing") is None
+
+
+def test_scrub_private_blanks_existing_rows(tmp_path):
+    ledger = Ledger(tmp_path / "l.sqlite")
+    r = row("p", "t", 1, needs_action=1)
+    r.update(from_email="office@clinic.example.org", subject="Your appointment", excerpt="details", summary="s")
+    ledger.record(r)
+    ledger.record(row("ok", "t2", 2))
+    assert ledger.scrub_private([r"clinic\.example\.org"]) == 1
+    got = ledger.get("p")
+    assert got["category"] == "private" and got["subject"] == "(private)"
+    assert got["excerpt"] == "" and got["needs_action"] == 0
+    assert ledger.get("ok")["category"] == "other"
+    assert ledger.scrub_private([r"clinic\.example\.org"]) == 0

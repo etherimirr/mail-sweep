@@ -153,6 +153,27 @@ class Ledger:
         self.db.commit()
         return cur.rowcount > 0
 
+    def scrub_private(self, patterns: list[str]) -> int:
+        """Re-apply privacy patterns to mail already in the ledger: blank its
+        subject, excerpt, summary, links and events, and mark it private."""
+        import re
+
+        scrubbed = 0
+        rows = self.db.execute(
+            "SELECT msg_id, from_name, from_email, subject FROM messages WHERE category != 'private'"
+        ).fetchall()
+        for row in rows:
+            haystack = f"{row['from_name']} {row['from_email']} {row['subject']}"
+            if any(re.search(p, haystack, re.I) for p in patterns):
+                self.db.execute(
+                    "UPDATE messages SET category='private', subject='(private)', excerpt='', "
+                    "summary='(private, not read)', action='', deadline='', company='', "
+                    "needs_action=0, classifier='private', meeting_links='[]', events='[]' "
+                    "WHERE msg_id=?", (row["msg_id"],))
+                scrubbed += 1
+        self.db.commit()
+        return scrubbed
+
     def mark_handled(self, msg_id: str, note: str = "") -> bool:
         cur = self.db.execute(
             "UPDATE messages SET handled_at=?, handled_note=? WHERE msg_id=?",

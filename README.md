@@ -33,6 +33,7 @@ python sweep.py run                 # everything new since the last run (plus a 
 python sweep.py run --days 14       # re-check the last 14 days; already-read mail is skipped
 python sweep.py audit --days 30     # list the last 30 days again and report anything not in the ledger
 python sweep.py done <msg_id> note  # close an item you handled outside email (e.g. booked on a scheduling page)
+python sweep.py scrub                # after editing private_patterns: blank matching mail already recorded
 python sweep.py status
 python sweep.py report              # re-render the report from the ledger
 python sweep.py export --since 2026-01-01T00:00:00Z --csv read-log.csv
@@ -72,6 +73,7 @@ Message text is passed to the model as data. The prompt tells the model not to f
 
 - Mail, tokens, the ledger, reports and `config.toml` never leave your machine through this tool and are git-ignored.
 - `private_patterns` in the config marks mail (by sender or subject) that must not be read: it is counted in the ledger so coverage stays complete, but its subject and body are not stored and it is never sent to a model.
+- After adding a pattern, run `python sweep.py scrub` to blank matching mail that is already in the ledger.
 - With a model backend, the text of non-private mail is sent to that model. Use `llm = "none"` if that is not acceptable.
 - Bodies longer than 6,000 characters are cut for classification; the ledger marks those rows `truncated = 1`.
 
