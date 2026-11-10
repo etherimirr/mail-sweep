@@ -90,3 +90,11 @@ def test_calendar_invite_overrides_a_harmless_verdict():
 def test_private_patterns():
     assert classify.is_private(msg(from_email="office@clinic.example.org"), [r"clinic\.example\.org"])
     assert not classify.is_private(msg(from_email="hr@company.com"), [r"clinic\.example\.org"])
+
+
+def test_calendar_invite_without_any_model_is_still_described():
+    invite = msg(subject="Sync", events=[CalendarEvent(method="REQUEST", summary="Intro call",
+                                                       organizer="pat@x.com", start_utc="2030-01-01T00:00:00Z")])
+    verdict = classify.apply_hard_signals(invite, classify.fallback_verdict(invite, "no model backend"))
+    assert verdict.category == "interview_scheduled" and verdict.classifier == "calendar"
+    assert "Intro call" in verdict.summary and "pat@x.com" in verdict.summary

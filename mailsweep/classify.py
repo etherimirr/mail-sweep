@@ -324,6 +324,11 @@ def apply_hard_signals(msg: ParsedMessage, verdict: Verdict) -> Verdict:
             verdict.needs_action = True
             if verdict.category in ("other", "notification", "unclassified", "personal"):
                 verdict.category = "interview_scheduled"
+            if verdict.classifier == "fallback":
+                # No model looked at it, but the invite itself says what it is.
+                verdict.classifier = "calendar"
+                verdict.summary = f"Calendar invitation: {event.summary} (organiser {event.organizer or 'unknown'})"
+                verdict.action = "Calendar invitation: confirm it is on your schedule."
             verdict.action = verdict.action or "Calendar invitation: confirm it is on your schedule."
             verdict.deadline = verdict.deadline or event.start_utc
     return verdict
