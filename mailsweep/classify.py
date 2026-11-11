@@ -129,6 +129,13 @@ For each message decide:
 
 Judge by what the message says, not by who sent it. Applicant tracking systems send interview invitations and rejections from the same address, and a subject such as "Thank you for your interest" can hide either. Spam-folder mail can be genuine. A reminder or follow-up asking again for something is still actionable. Boilerplate rejections and receipts are not.
 
+These are always needs_action true, because they were missed before:
+- any message written personally by a real person (a professor, advisor, TA, alumnus, recruiter, hiring manager, founder, classmate) that asks something, answers the owner, or continues a conversation, even if it reads like a short "thanks" or "let me check";
+- any follow-up after an application that is not a boilerplate receipt or rejection: questions, extra forms, availability, assessments, "next steps", status updates that ask for anything;
+- registration or RSVP for a recruiting or career event that has not happened yet (info session, fireside chat, coffee chat, career fair, employer expo, workshop with employers);
+- resume drops, resume books, and roles a school career office pushes with a way to apply.
+When you are unsure whether the owner must act, set needs_action true. Missing something costs far more than one extra line in the report.
+
 Return only JSON: {{"results": [{{"id": ..., "category": ..., "needs_action": ..., "action": ..., "deadline": ..., "company": ..., "summary": ...}}]}} with exactly one entry per input id."""
 
 RESULT_SCHEMA = {
