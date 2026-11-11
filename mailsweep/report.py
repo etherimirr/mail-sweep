@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from .parse import is_upcoming, local_time
@@ -18,9 +19,53 @@ def _who(row) -> str:
 
 
 def _event_is_over(row, now: datetime) -> bool:
-    """A meeting that has already happened no longer needs anyone."""
+    """True when every calendar event attached to the message is in the past."""
     events = [e for e in json.loads(row["events"] or "[]") if e.get("start_utc")]
     return bool(events) and not any(is_upcoming(e["start_utc"], now) for e in events)
+
+
+# Interviews that already took place need nobody; anything else whose date has
+# passed (resume drop, info session, application window) still needs a recovery
+# step, so it is listed separately instead of being dropped.
+_DONE_WHEN_OVER = {"interview_scheduled", "interview_invite"}
+
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def deadline_passed(deadline: str, now: datetime) -> bool:
+    """Best effort: True when the free-text deadline names a date before today.
+
+    Understands 2026-11-06, 11/6(/2026) and "Nov 6"; anything else is treated
+    as not passed so it stays in the main list.
+    """
+    text = (deadline or "").strip().lower()
+    if not text:
+        return False
+    year = now.year
+    m = re.search(r"(20\d\d)-(\d{1,2})-(\d{1,2})", text)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    else:
+        m = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", text)
+        if m:
+            mo, d = int(m.group(1)), int(m.group(2))
+            y = int(m.group(3)) if m.group(3) else year
+            y = y + 2000 if y < 100 else y
+        else:
+            m = re.search(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?!\d)", text)
+            if not m:
+                return False
+            mo, d, y = _MONTHS[m.group(1)], int(m.group(2)), year
+    try:
+        when = datetime(y, mo, d, 23, 59, tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return when < now - timedelta(hours=12)
+
+
+def _is_past(row, now: datetime) -> bool:
+    return _event_is_over(row, now) or deadline_passed(row["deadline"], now)
 
 
 def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: int = 4) -> str:
@@ -46,25 +91,43 @@ def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: 
         out("No classifier has judged these. Run `sweep.py pending --json p.json`, judge them, "
             "then `sweep.py apply`. Until then they are treated as needing you.")
         out("")
-    open_items = [r for r in ledger.open_items()
-                  if r["category"] != "unclassified" and not _event_is_over(r, now)]
+    candidates = [r for r in ledger.open_items() if r["category"] != "unclassified"]
+    open_items = [r for r in candidates if not _is_past(r, now)]
+    past_items = [r for r in candidates
+                  if _is_past(r, now) and not (r["category"] in _DONE_WHEN_OVER and _event_is_over(r, now))]
     out(f"## Needs you ({len(open_items)})")
     if not open_items:
         out("Nothing open.")
     for row in open_items:
-        flag = " `SPAM folder`" if row["folder"] == "SPAM" else ""
-        out(f"- **{_who(row)}** · {row['category']} · received {_when(row['internal_ts'], zone)}{flag}")
-        out(f"  - {row['summary'] or row['subject']}")
-        if row["action"]:
-            out(f"  - Do: {row['action']}")
-        if row["deadline"]:
-            out(f"  - By: {row['deadline']}")
-        links = json.loads(row["meeting_links"] or "[]")
-        if links:
-            out(f"  - Link: {links[0]}")
-        out(f"  - id `{row['msg_id']}` · subject: {row['subject']}")
+        _item(out, row, zone)
     out("")
 
+    out(f"## Past deadline, still recover ({len(past_items)})")
+    out("Never drop these: check whether the form still accepts submissions, apply on the company site, "
+        "or write to the sender/recruiter asking to be included late.")
+    for row in past_items:
+        _item(out, row, zone)
+    out("")
+
+    _rest(out, ledger, run_id, now, zone, follow_up_days)
+    return "\n".join(lines)
+
+
+def _item(out, row, zone: str) -> None:
+    flag = " `SPAM folder`" if row["folder"] == "SPAM" else ""
+    out(f"- **{_who(row)}** · {row['category']} · received {_when(row['internal_ts'], zone)}{flag}")
+    out(f"  - {row['summary'] or row['subject']}")
+    if row["action"]:
+        out(f"  - Do: {row['action']}")
+    if row["deadline"]:
+        out(f"  - By: {row['deadline']}")
+    links = json.loads(row["meeting_links"] or "[]")
+    if links:
+        out(f"  - Link: {links[0]}")
+    out(f"  - id `{row['msg_id']}` · subject: {row['subject']}")
+
+
+def _rest(out, ledger: Ledger, run_id: int, now: datetime, zone: str, follow_up_days: int) -> None:
     upcoming = []
     for row in ledger.with_events():
         for event in json.loads(row["events"] or "[]"):
@@ -95,4 +158,3 @@ def render(ledger: Ledger, run_id: int, stats: dict, zone: str, follow_up_days: 
     for category, count in sorted(counts.items(), key=lambda item: -item[1]):
         out(f"- {category}: {count}")
     out("")
-    return "\n".join(lines)
