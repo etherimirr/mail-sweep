@@ -313,8 +313,53 @@ def by_model(msgs: list[ParsedMessage], backend: Backend | None, language: str) 
     return verdicts, truncated
 
 
-def apply_hard_signals(msg: ParsedMessage, verdict: Verdict) -> Verdict:
-    """Facts that override any classifier: a calendar invite is always surfaced."""
+# Sign-ups with a deadline: resume drops/books, and registration for recruiting
+# events. Classifiers kept filing these as "event_invite"/"notification" with
+# needs_action false, so they never reached the report and deadlines passed.
+RESUME_PATTERN = re.compile(
+    r"(resume\s*(drop|book|collection)|upload (your )?resume|submit (your )?resume|"
+    r"collecting resumes|resume submissions?)", re.I)
+REGISTER_PATTERN = re.compile(
+    r"(register (here|now|to attend|for|via|through|at|using|by|with)|interested in attending|"
+    r"registration (link|is required|required)|\brsvp\b|sign[- ]?up (here|link|via)|"
+    r"please (register|sign up)|space is limited|you'?re invited)", re.I)
+RECRUITING_SUBJECT = re.compile(
+    r"(career|recruit|info(rmation(al)?)? session|coffee chat|fireside|employer|expo|hiring|"
+    r"internship|new grad|meet ?(&|and) ?greet|networking|resume|tech talk|career fair)", re.I)
+SIGNUP_ACTION = "Sign-up with a deadline (recruiting event registration / resume drop): register or submit before it closes."
+
+
+def signup_needed(subject: str, text: str, sender: str, important_senders=()) -> bool:
+    """True when a message asks the owner to hand in a resume, or to register
+    for a recruiting event (career office sender or a recruiting subject)."""
+    subject, text = subject or "", text or ""
+    if RESUME_PATTERN.search(subject) or RESUME_PATTERN.search(text):
+        return True
+    important = any(re.search(p, sender or "", re.I) for p in important_senders)
+    if important:
+        return True
+    return bool(RECRUITING_SUBJECT.search(subject)) and bool(
+        REGISTER_PATTERN.search(subject) or REGISTER_PATTERN.search(text))
+
+
+def apply_signup_signal(verdict: Verdict, subject: str, text: str, sender: str,
+                        important_senders=()) -> Verdict:
+    if verdict.category in ("private", "rejection", "application_ack", "offer"):
+        return verdict
+    if signup_needed(subject, text, sender, important_senders):
+        verdict.needs_action = True
+        if verdict.category in ("other", "notification", "newsletter", "unclassified", "personal"):
+            verdict.category = "event_invite"
+        verdict.action = verdict.action or SIGNUP_ACTION
+    return verdict
+
+
+def apply_hard_signals(msg: ParsedMessage, verdict: Verdict, important_senders=()) -> Verdict:
+    """Facts that override any classifier: a calendar invite is always surfaced,
+    and so is any sign-up (event registration, resume drop/book)."""
+    if verdict.category not in ("private",):
+        apply_signup_signal(verdict, msg.subject, msg.body or msg.full_body,
+                            f"{msg.from_name} <{msg.from_email}>", important_senders)
     for event in msg.events:
         if event.method.upper() == "CANCEL":
             verdict.needs_action = True

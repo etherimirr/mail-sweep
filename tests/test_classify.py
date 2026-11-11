@@ -98,3 +98,35 @@ def test_calendar_invite_without_any_model_is_still_described():
     verdict = classify.apply_hard_signals(invite, classify.fallback_verdict(invite, "no model backend"))
     assert verdict.category == "interview_scheduled" and verdict.classifier == "calendar"
     assert "Intro call" in verdict.summary and "pat@x.com" in verdict.summary
+
+
+def test_resume_drop_is_surfaced_even_if_model_said_notification():
+    v = classify.Verdict("notification", False)
+    m = msg(from_email="career@school.example", subject="[RESUME DROP] Bank - Strategist",
+            body="Please submit your resume through the Google resume drop link by Friday.")
+    v = classify.apply_hard_signals(m, v)
+    assert v.needs_action and v.category == "event_invite" and v.action
+
+
+def test_info_session_registration_is_surfaced():
+    v = classify.Verdict("event_invite", False)
+    m = msg(subject="Info Session - Friday", body="If interested in attending, register through the link below.")
+    assert classify.apply_hard_signals(m, v).needs_action
+
+
+def test_important_sender_is_always_surfaced():
+    v = classify.Verdict("other", False)
+    m = msg(from_email="advisor@dept.example", subject="New roles", body="See below.")
+    assert classify.apply_hard_signals(m, v, [r"advisor@dept\.example"]).needs_action
+
+
+def test_rejection_is_not_turned_into_signup():
+    v = classify.Verdict("rejection", False)
+    m = msg(subject="Update", body="Space is limited and we have chosen other candidates.")
+    assert not classify.apply_hard_signals(m, v).needs_action
+
+
+def test_plain_notification_stays_quiet():
+    v = classify.Verdict("notification", False)
+    m = msg(from_email="no-reply@ats.example", subject="Your profile was viewed", body="Someone viewed your profile.")
+    assert not classify.apply_hard_signals(m, v).needs_action

@@ -34,6 +34,7 @@ DEFAULTS = {
     "summary_language": "English",
     "my_addresses": [],
     "private_patterns": [],
+    "important_senders": [],
     "llm": "auto",
     "model": "claude-opus-5-5",
     "batch_size": 8,
@@ -64,9 +65,9 @@ def read_one(service, ledger: Ledger, msg_id: str, me: set[str], config: dict):
     return parsed, classify.by_rule(parsed)
 
 
-def save(ledger: Ledger, parsed, verdict, run_id: int, truncated: bool = False) -> None:
+def save(ledger: Ledger, parsed, verdict, run_id: int, truncated: bool = False, important=()) -> None:
     private = verdict.category == "private"
-    verdict = verdict if private else classify.apply_hard_signals(parsed, verdict)
+    verdict = verdict if private else classify.apply_hard_signals(parsed, verdict, important)
     ledger.record({
         "msg_id": parsed.msg_id,
         "thread_id": parsed.thread_id,
@@ -103,7 +104,8 @@ def process(service, ledger: Ledger, ids: list[str], me: set[str], config: dict,
             return
         verdicts, truncated = classify.by_model(queue, backend, config["summary_language"])
         for item in queue:
-            save(ledger, item, verdicts[item.msg_id], run_id, item.msg_id in truncated)
+            save(ledger, item, verdicts[item.msg_id], run_id, item.msg_id in truncated,
+                 config.get("important_senders", []))
         queue.clear()
 
     for index, msg_id in enumerate(ids, 1):
@@ -114,7 +116,7 @@ def process(service, ledger: Ledger, ids: list[str], me: set[str], config: dict,
             failed.append(msg_id)
             continue
         if verdict is not None:
-            save(ledger, parsed, verdict, run_id)
+            save(ledger, parsed, verdict, run_id, important=config.get("important_senders", []))
         else:
             queue.append(parsed)
             if len(queue) >= config["batch_size"]:
@@ -252,10 +254,16 @@ def cmd_apply(args, config: dict) -> int:
             needs_action = True
             if category in ("other", "notification", "personal"):
                 category = "interview_scheduled"
+        # Sign-ups (registration, resume drop/book) are surfaced whatever the verdict says.
+        v = classify.Verdict(category, needs_action, action=item.get("action", ""))
+        classify.apply_signup_signal(v, row["subject"] or "", row["excerpt"] or "",
+                                     f"{row['from_name'] or ''} <{row['from_email'] or ''}>",
+                                     config.get("important_senders", []))
+        category, needs_action = v.category, v.needs_action
         applied += ledger.apply_verdict(str(item["id"]), {
             "category": category,
             "needs_action": int(needs_action),
-            "action": item.get("action", ""),
+            "action": v.action,
             "deadline": item.get("deadline", ""),
             "company": item.get("company", ""),
             "summary": item.get("summary", ""),

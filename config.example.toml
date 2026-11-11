@@ -18,6 +18,12 @@ private_patterns = [
     # "therapy", "clinic\\.example\\.org",
 ]
 
+# Senders whose mail is always surfaced in the report (e.g. a career office),
+# as regular expressions matched against "Name <address>".
+important_senders = [
+    # "career@school\\.example\\.edu",
+]
+
 # Classifier for mail the narrow rules do not cover:
 #   auto        Anthropic API if ANTHROPIC_API_KEY is set, else the `claude` CLI, else none
 #   anthropic   Anthropic API (pip install anthropic)
